@@ -36,11 +36,8 @@ class IRobot:
 
         try:
             self.lock.acquire()
-
-            logging.debug("flushing serial")
             self.device.flushInput()
             self.device.flush()
-
             c=array.array('B',[128])
             self.device.write(c.tostring())
 
@@ -53,11 +50,8 @@ class IRobot:
 
         try:
             self.lock.acquire()
-
-            logging.debug("flushing serial")
             self.device.flushInput()
             self.device.flush()
-
             c=array.array('B',[131])
             self.device.write(c.tostring())
 
@@ -70,11 +64,8 @@ class IRobot:
 
         try:
             self.lock.acquire()
-
-            logging.debug("flushing serial")
             self.device.flushInput()
             self.device.flush()
-
             c=array.array('B',[132])
             self.device.write(c.tostring())
 
@@ -137,7 +128,6 @@ class IRobot:
             self.lock.acquire()
             self.device.flushInput()
             self.device.flush()
-
             self.device.write(array.array('B',c).tostring())
             data = self.device.read(struct.calcsize(f))
 
