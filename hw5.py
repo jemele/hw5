@@ -6,6 +6,7 @@ import logging
 import numpy as np
 import serial
 import struct
+import sys
 import threading
 import time
 
@@ -17,6 +18,9 @@ class IRobot:
 
     """If valid, a threading.Timer object for sensor polling."""
     timer = None
+
+    """Integrated distance and angle derived from sensor poll."""
+    distance, angle = 0, 0
 
     """Initialize the device."""
     def __init__(self):
@@ -42,9 +46,10 @@ class IRobot:
         self.device.write(c.tostring())
 
     """Start the sensor polling timer."""
-    def sensor_start(self):
+    def sensor_start(self, period_s):
+        self.sensor_period_s = period_s
         self.sensor_stop()
-        self.timer = threading.Timer(1.0, self._sensor_poll)
+        self.timer = threading.Timer(period_s, self._sensor_poll)
         logging.debug("sensor start")
         self.timer.start()
 
@@ -76,11 +81,12 @@ class IRobot:
         # Bumps and Wheel Drops Packet ID: 7 Data Bytes: 1
         # Wall Packet ID: 8 Data Bytes: 1# 
         # Distance Packet ID: 19 Data Bytes: 2
+        # Angle Packet ID: 20 Data Bytes: 2
         logging.debug("query list")
-        c=[149,3,7,8,19]
+        c=[149,4,7,8,19,20]
         self.device.write(array.array('B',c).tostring())
 
-        f='<BBH'
+        f='<BBHH'
         logging.debug("reading sensor: %d bytes" % (struct.calcsize(f)))
         d=self.device.read(struct.calcsize(f))
         b=struct.unpack(f,d)
@@ -88,15 +94,20 @@ class IRobot:
         self.sensor_bumper = b[0]
         self.sensor_wall = b[1]
         self.sensor_distance = b[2]
+        self.sensor_angle = b[3]
         self.sensor_timestamp = time.time()
+
+        # integrate distance and angle
+        self.distance += self.sensor_distance
+        self.angle += self.sensor_angle
 
         # Stop movement on bump
         if self.sensor_bumper:
             logging.debug("bump detected, stopping")
             self.stop()
 
-        logging.debug("rescheduling poll")
-        self.sensor_start()
+        # reschedule the next sensor poll
+        self.sensor_start(self.sensor_period_s)
 
 
 """OpenCV v4l2 color tracker."""
@@ -176,29 +187,26 @@ if __name__ == '__main__':
     # set logging to kill
     logging.getLogger().setLevel(logging.DEBUG)
 
-    # irobot test
-    if False:
-        # initialize the irobot
-        r=IRobot()
-        r.mode_safe()
-        r.mode_full()
+    # initialize the irobot
+    # stay in safe mode, since there's no need for full
+    r = IRobot()
+    r.mode_safe()
 
-        # start the timer and sleep for a while
-        r.sensor_start()
-        time.sleep(5)
-        r.sensor_stop()
+    # poll the irobot sensor every 0.5s
+    r.sensor_start(0.5)
 
-    # cvtracker test
-    if True:
-        c = CVTracker()
-        while True:
+    # initialize the tracker
+    c = CVTracker()
+    while True:
 
-             # capture and process a frame
-            c.process_frame()
+        # capture and process a frame
+        c.process_frame()
 
-            # bail on escape
-            k = cv2.waitKey(10) & 0xFF
-            if k == 27:
-                break
+        # bail on escape
+        k = cv2.waitKey(10) & 0xFF
+        if k == 27:
+            break
 
+    # stop the irobot
+    r.sensor_stop()
         
