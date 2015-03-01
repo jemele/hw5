@@ -11,7 +11,7 @@
 typedef struct {
     // spacial parameters
     double thetaH, thetaH_rate, thetaH_rate_2; //rates are in rad/ms
-    double range, range_rate, range_rate_2;  //range is in mm
+    double range, range_rate;
     
     // wheel speed
     int speed_left; // mm/ms
@@ -273,7 +273,6 @@ int range (location_data *iRobot, int y) {
         return 1;
     }
     double range =762 / tan (2*pi*(80 - y/5.27)/360);
-    iRobot->range_rate_2 = iRobot->range_rate;
     iRobot->range_rate = (range - iRobot->range)/iRobot->delta_t;
     iRobot->range = range;
     printf("Range: %f\n", range);
