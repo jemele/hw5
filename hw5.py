@@ -35,7 +35,6 @@ class IRobot:
         logging.debug('mode start')
 
         try:
-            logging.debug("acquiring device lock")
             self.lock.acquire()
 
             logging.debug("flushing serial")
@@ -53,7 +52,6 @@ class IRobot:
         logging.debug('mode safe')
 
         try:
-            logging.debug("acquiring device lock")
             self.lock.acquire()
 
             logging.debug("flushing serial")
@@ -71,7 +69,6 @@ class IRobot:
         logging.debug('mode full')
 
         try:
-            logging.debug("acquiring device lock")
             self.lock.acquire()
 
             logging.debug("flushing serial")
@@ -103,18 +100,18 @@ class IRobot:
     def drive(self, left_mm_per_s, right_mm_per_s):
         logging.debug("drive %d,%d" % (left_mm_per_s, right_mm_per_s))
 
-        f='<BHH'
-        c=struct.pack(f,left_mm_per_s,right_mm_per_s)
+        # XXX This shouldn't be necessary, but byte ordering appears to be a
+        # problem.
+        f='<BBBBB'
+        l=[(left_mm_per_s>>8)&0xff,(left_mm_per_s&0xff)]
+        r=[(right_mm_per_s>>8)&0xff,(right_mm_per_s&0xff)]
+        c=struct.pack(f,145,l[0],l[1],r[0],r[1])
 
         try:
-            logging.debug("acquiring device lock")
             self.lock.acquire()
-
-            logging.debug("flushing serial")
             self.device.flushInput()
             self.device.flush()
             self.device.write(c)
-
         finally:
             self.lock.release()
 
@@ -127,39 +124,35 @@ class IRobot:
     def _sensor_poll(self):
         logging.debug("sensor poll")
 
+        # Bumps and Wheel Drops Packet ID: 7 Data Bytes: 1
+        # Wall Packet ID: 8 Data Bytes: 1# 
+        # Distance Packet ID: 19 Data Bytes: 2
+        # Angle Packet ID: 20 Data Bytes: 2
         # the sensor data, once read
+        c=[149,4,7,8,19,20]
+        f='<BBBBBB'
         data = None
 
         try:
-            logging.debug("acquiring device lock")
             self.lock.acquire()
-
-            logging.debug("flushing serial")
             self.device.flushInput()
             self.device.flush()
 
-            # Bumps and Wheel Drops Packet ID: 7 Data Bytes: 1
-            # Wall Packet ID: 8 Data Bytes: 1# 
-            # Distance Packet ID: 19 Data Bytes: 2
-            # Angle Packet ID: 20 Data Bytes: 2
-            logging.debug("query list")
-            c=[149,4,7,8,19,20]
             self.device.write(array.array('B',c).tostring())
-
-            f='<BBHH'
-            logging.debug("reading sensor: %d bytes" % (struct.calcsize(f)))
             data = self.device.read(struct.calcsize(f))
 
         finally:
             self.lock.release()
 
-        b=struct.unpack(f,data))
-        logging.debug(b)
+        b=struct.unpack(f,data)
         self.sensor_bumper = b[0]
         self.sensor_wall = b[1]
-        self.sensor_distance = b[2]
-        self.sensor_angle = b[3]
+        self.sensor_distance = (b[2]<<8)|b[3]
+        self.sensor_angle = (b[4]<<8)|b[5]
         self.sensor_timestamp = time.time()
+        logging.debug("%d: bumper %d wall %d distance %d" % \
+                (self.sensor_timestamp,self.sensor_bumper,self.sensor_wall,
+                 self.sensor_distance))
 
         # integrate distance and angle
         self.distance += self.sensor_distance
@@ -255,8 +248,11 @@ if __name__ == '__main__':
     # stay in safe mode, since there's no need for full
     r = IRobot()
     r.mode_safe()
+    time.sleep(0.1)
+    r.mode_full()
 
-    # poll the irobot sensor every 0.5s
+    # poll the irobot sensor every 0.2s
+    time.sleep(0.1)
     r.sensor_start(0.5)
 
     # start a bump test
