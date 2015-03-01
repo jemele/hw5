@@ -1,75 +1,92 @@
+# Joshua Emele <jemele@acm.org>
+# Tristan Monroe <twmonroe@eng.ucsd.edu>
 import cv2
 import numpy as np
+import time
 
-cap = cv2.VideoCapture(0)
-cap.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT,240)
-cap.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH,320)
+"""OpenCV v4l2 color tracker."""
+class CVTracker:
 
-def nothing(x):
-    pass
+    """Information about the last tracked in-frame object."""
+    timestamp, x, y, area = None, None, None, None
 
-# Creating a window for later use
-cv2.namedWindow('result')
+    """Initialize capture device and calibration controls."""
+    def __init__(self):
 
-# Creating track bar
-# Tuned to my blue rei shirt
-cv2.createTrackbar('b0','result',15,255,nothing)
-cv2.createTrackbar('h0','result',60,179,nothing)
-cv2.createTrackbar('s0','result',20,255,nothing)
-cv2.createTrackbar('v0','result',20,255,nothing)
-cv2.createTrackbar('h1','result',160,179,nothing)
-cv2.createTrackbar('s1','result',200,255,nothing)
-cv2.createTrackbar('v1','result',200,255,nothing)
+        # Create and initialize capture device
+        self.cap = cv2.VideoCapture(0)
+        self.cap.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT,240)
+        self.cap.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH,320)
 
-while(1):
+        # Create controls
+        cv2.namedWindow('c')
+        def nothing(x):
+            pass
+        cv2.createTrackbar('b0','c',15,255,nothing)
+        cv2.createTrackbar('h0','c',60,179,nothing)
+        cv2.createTrackbar('s0','c',20,255,nothing)
+        cv2.createTrackbar('v0','c',20,255,nothing)
+        cv2.createTrackbar('h1','c',160,179,nothing)
+        cv2.createTrackbar('s1','c',200,255,nothing)
+        cv2.createTrackbar('v1','c',200,255,nothing)
 
-    _, frame = cap.read()
+    """Capture and process an image frame.""" 
+    def process_frame(self):
+        _, frame = self.cap.read()
 
-    #converting to HSV
-    b0 = cv2.getTrackbarPos('b0','result')
-    frame = cv2.medianBlur(frame,b0)
-    hsv = cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
+        #converting to HSV
+        b0 = cv2.getTrackbarPos('b0','c')
+        frame = cv2.medianBlur(frame,b0)
+        hsv = cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
 
-    # get info from track bar and appy to result
-    h0 = cv2.getTrackbarPos('h0','result')
-    s0 = cv2.getTrackbarPos('s0','result')
-    v0 = cv2.getTrackbarPos('v0','result')
+        # get masking information from the user
+        lower = np.array([
+            cv2.getTrackbarPos('h0','c'),
+            cv2.getTrackbarPos('s0','c'),
+            cv2.getTrackbarPos('v0','c')])
+        upper = np.array([
+            cv2.getTrackbarPos('h1','c'),
+            cv2.getTrackbarPos('s1','c'),
+            cv2.getTrackbarPos('v1','c')])
+        mask = cv2.inRange(hsv, lower, upper)
 
-    h1 = cv2.getTrackbarPos('h1','result')
-    s1 = cv2.getTrackbarPos('s1','result')
-    v1 = cv2.getTrackbarPos('v1','result')
+        # https://opencv-python-tutroals.readthedocs.org/en/latest/py_tutorials/py_imgproc/py_morphological_ops/py_morphological_ops.html
+        # apply open and closing morpholophy
+        # open to remove noise
+        # closing to fill holes
+        kernel = np.ones((b0,b0),np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
-    # Normal masking algorithm
-    lower = np.array([h0,s0,v0])
-    upper = np.array([h1,s1,v1])
-    mask = cv2.inRange(hsv, lower, upper)
+        # compute moments meeting area requirements
+        # http://docs.opencv.org/modules/imgproc/doc/structural_analysis_and_shape_descriptors.html
+        # http://opencvpython.blogspot.com/2012/06/contours-2-brotherhood.html
+        moments = cv2.moments(mask)
+        area = int(moments['m00'])
+        if area > 100000:
+            self.area = area
+            self.x, self.y = int(moments['m10']/area), int(moments['m01']/area)
+            self.timestamp = time.time()
 
-    # https://opencv-python-tutroals.readthedocs.org/en/latest/py_tutorials/py_imgproc/py_morphological_ops/py_morphological_ops.html
-    # apply open and closing morpholophy
-    # open to remove noise
-    # closing to fill holes
-    kernel = np.ones((b0,b0),np.uint8)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+            # fraw the centroid on the frame for reference
+            cv2.circle(frame,(self.x,self.y),10,(255,255,255),-1)
 
-    # compute moments meeting area requirements
-    # http://docs.opencv.org/modules/imgproc/doc/structural_analysis_and_shape_descriptors.html
-    # http://opencvpython.blogspot.com/2012/06/contours-2-brotherhood.html
-    moments = cv2.moments(mask)
-    area = moments['m00']
-    if area > 100000:
-        x, y = int(moments['m10']/area), int(moments['m01']/area)
-        cv2.circle(frame,(x,y),10,(255,255,255),-1)
+        # show the frame and the mask
+        cv2.imshow('frame',frame)
+        cv2.imshow('mask',mask)
 
-    # show the frame and the mask
-    cv2.imshow('frame',frame)
-    cv2.imshow('mask',mask)
+# Application entry point.
+if __name__ == '__main__':
 
-    # bail on escape
-    k = cv2.waitKey(10) & 0xFF
-    if k == 27:
-        break
+    c = CVTracker()
+    while True:
 
-cap.release()
+         # capture and process a frame
+        c.process_frame()
 
-cv2.destroyAllWindows()
+        # bail on escape
+        k = cv2.waitKey(10) & 0xFF
+        if k == 27:
+            break
+
+
