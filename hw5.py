@@ -161,6 +161,19 @@ class IRobot:
         # reschedule the next sensor poll
         self.sensor_start(self.sensor_period_s)
 
+    """Program and play a song."""
+    def song(self):
+        try:
+            self.lock.acquire()
+            self.device.flushInput()
+            self.device.flush()
+            c=[140,0,4,62,12,66,12,69,12,74,36]
+            self.device.write(array.array('B',c).tostring())
+            c=[141,0]
+            self.device.write(array.array('B',c).tostring())
+
+        finally:
+            self.lock.release()
 
 """OpenCV v4l2 color tracker."""
 class CVTracker:
@@ -346,6 +359,7 @@ if __name__ == '__main__':
     r = IRobot()
     r.mode_safe()
     r.mode_full()
+    r.song()
 
     # initialize the tracker and calibrate
     c = CVTracker()
@@ -386,6 +400,7 @@ if __name__ == '__main__':
             if t[0] < 750 and math.fabs(t[1]) < 3:
                 logging.info("firing laser")
                 open('/sys/class/gpio/gpio20/value','w').write('1')
+                r.song()
                 sys.exit(0)
 
             # rotate toward the object while moving forward
