@@ -168,6 +168,9 @@ class CVTracker:
     """Information about the last tracked in-frame object."""
     timestamp, x, y, area = None, None, None, None
 
+    """HSV color threshold. Users *must* calibrate beforing using."""
+    lower, upper = None, None
+
     """Initialize capture device and calibration controls."""
     def __init__(self):
 
@@ -202,17 +205,7 @@ class CVTracker:
         b0 = cv2.getTrackbarPos('b0','c')
         frame = cv2.medianBlur(frame,b0)
         hsv = cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
-
-        # get masking information from the user
-        lower = np.array([
-            cv2.getTrackbarPos('h0','c'),
-            cv2.getTrackbarPos('s0','c'),
-            cv2.getTrackbarPos('v0','c')])
-        upper = np.array([
-            cv2.getTrackbarPos('h1','c'),
-            cv2.getTrackbarPos('s1','c'),
-            cv2.getTrackbarPos('v1','c')])
-        mask = cv2.inRange(hsv, lower, upper)
+        mask = cv2.inRange(hsv, self.lower, self.upper)
 
         # https://opencv-python-tutroals.readthedocs.org/en/latest/py_tutorials/py_imgproc/py_morphological_ops/py_morphological_ops.html
         # apply open and closing morpholophy
@@ -238,6 +231,27 @@ class CVTracker:
         # show the frame and the mask
         cv2.imshow('frame',frame)
         cv2.imshow('mask',mask)
+
+    """Calibrate the tracker, press 'c' to continue, ESC to abort."""
+    def calibrate(self):
+        while True:
+            self.lower = np.array([
+                cv2.getTrackbarPos('h0','c'),
+                cv2.getTrackbarPos('s0','c'),
+                cv2.getTrackbarPos('v0','c')])
+            self.upper = np.array([
+                cv2.getTrackbarPos('h1','c'),
+                cv2.getTrackbarPos('s1','c'),
+                cv2.getTrackbarPos('v1','c')])
+            self.process_frame()
+            k = cv2.waitKey(50) & 0xff
+            if chr(k) == 'c': # continue
+                logging.debug("calibration complete")
+                break
+            elif k == 27: # escape
+                logging.info("calibration abort")
+                sys.exit(0)
+
 
 # Acquire an object.
 # On acquisition, stop and return.
@@ -330,15 +344,7 @@ if __name__ == '__main__':
 
     # initialize the tracker and calibrate
     c = CVTracker()
-    while True:
-        c.process_frame()
-        k = cv2.waitKey(50) & 0xff
-        if chr(k) == 'c': # continue
-            logging.debug("calibration complete")
-            break
-        elif k == 27: # escape
-            logging.info("calibration abort")
-            sys.exit(0)
+    c.calibrate()
 
     try:
         # poll the irobot sensor
@@ -378,9 +384,13 @@ if __name__ == '__main__':
                 sys.exit(0)
 
             # rotate toward the object while moving forward
+            # XXX these numbers are totally made up
+            # XXX a second order filter would be much better
             rate = 20
-            right_delta = t[1]/2
-            r.drive(rate - right_delta, rate + right_delta)
+            right_delta = t[1]/4
+            left_rate = rate - right_delta
+            right_rate = rate + right_delta
+            r.drive(left_rate, right_rate)
 
     finally:
         # stop the irobot
