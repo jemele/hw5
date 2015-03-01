@@ -52,9 +52,20 @@ while(1):
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
+    # compute moments meeting area requirements
+    # http://docs.opencv.org/modules/imgproc/doc/structural_analysis_and_shape_descriptors.html
+    # http://opencvpython.blogspot.com/2012/06/contours-2-brotherhood.html
+    moments = cv2.moments(mask)
+    area = moments['m00']
+    if area > 100000:
+        x, y = int(moments['m10']/area), int(moments['m01']/area)
+        cv2.circle(frame,(x,y),10,(255,255,255),-1)
+
+    # show the frame and the mask
     cv2.imshow('frame',frame)
     cv2.imshow('mask',mask)
 
+    # bail on escape
     k = cv2.waitKey(10) & 0xFF
     if k == 27:
         break
