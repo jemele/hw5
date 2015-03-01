@@ -46,6 +46,14 @@ class IRobot:
             self.timer.cancel()
             self.timer = None
 
+    def drive(self, left_mm_per_s, right_mm_per_s):
+        logging.debug("drive %d,%d" % (left_mm_per_s, right_mm_per_s))
+        pass
+
+    def stop(self):
+        logging.debug("stop")
+        self.drive(0,0)
+
     def _sensor_poll(self):
         logging.debug("sensor poll")
 
@@ -53,20 +61,27 @@ class IRobot:
         self.device.flushInput()
         self.device.flush()
 
-        logging.debug("query list")
         # Bumps and Wheel Drops Packet ID: 7 Data Bytes: 1
         # Wall Packet ID: 8 Data Bytes: 1# 
         # Distance Packet ID: 19 Data Bytes: 2
+        logging.debug("query list")
         c=[149,3,7,8,19]
         self.device.write(array.array('B',c).tostring())
-        time.sleep(0.1)
 
         f='<BBH'
         logging.debug("reading sensor: %d bytes" % (struct.calcsize(f)))
         d=self.device.read(struct.calcsize(f))
-        logging.debug("read: %d bytes" % (len(d)))
         b=struct.unpack(f,d)
-        print b
+        logging.debug(b)
+        self.sensor_bumper = b[0]
+        self.sensor_wall = b[1]
+        self.sensor_distance = b[2]
+        self.sensor_timestamp = time.time()
+
+        # Stop movement on bump
+        if self.sensor_bumper:
+            logging.debug("bump detected, stopping")
+            self.stop()
 
         logging.debug("rescheduling poll")
         self.sensor_start()
@@ -84,6 +99,6 @@ if __name__ == '__main__':
 
     # start the timer and sleep for a while
     r.sensor_start()
-    time.sleep(10)
+    time.sleep(5)
     r.sensor_stop()
 
