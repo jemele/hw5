@@ -9,51 +9,61 @@ import time
 
 """ Interact with an irobot over serial."""
 class IRobot:
+
     """A serial device used to communicate with the irobot.""" 
     device = serial.Serial('/dev/ttyO1',57600)
 
     """If valid, a threading.Timer object for sensor polling."""
     timer = None
 
+    """Initialize the device."""
     def __init__(self):
         logging.debug('starting irobot')
         self.mode_start()
 
+    """Start the irobot."""
     def mode_start(self):
         logging.debug('mode start')
         c=array.array('B',[128])
         self.device.write(c.tostring())
 
+    """Enter safe mode."""
     def mode_safe(self):
         logging.debug('mode safe')
         c=array.array('B',[131])
         self.device.write(c.tostring())
 
+    """Enter full mode."""
     def mode_full(self):
         logging.debug('mode full')
         c=array.array('B',[132])
         self.device.write(c.tostring())
 
+    """Start the sensor polling timer."""
     def sensor_start(self):
         self.sensor_stop()
         self.timer = threading.Timer(1.0, self._sensor_poll)
         logging.debug("sensor start")
         self.timer.start()
 
+    """Stop the sensor polling timer."""
     def sensor_stop(self):
         if self.timer is not None:
             logging.debug("sensor stop")
             self.timer.cancel()
             self.timer = None
 
+    """Drive each wheel at the specified rate."""
     def drive(self, left_mm_per_s, right_mm_per_s):
         logging.debug("drive %d,%d" % (left_mm_per_s, right_mm_per_s))
         pass
 
+    """Stop driving."""
     def stop(self):
         logging.debug("stop")
         self.drive(0,0)
 
+    """Poll the irobot for sensor data."""
     def _sensor_poll(self):
         logging.debug("sensor poll")
 
