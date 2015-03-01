@@ -194,7 +194,9 @@ class CVTracker:
 
     """Capture and process an image frame.""" 
     def process_frame(self):
-        _, frame = self.cap.read()
+        success, frame = self.cap.read()
+        if not success:
+            return
 
         #converting to HSV
         b0 = cv2.getTrackbarPos('b0','c')
