@@ -268,13 +268,13 @@ def acquire(robot, tracker, rate_mm_s = 10):
             logging.info("searching...")
 
         # check for abort
-        k = cv2.waitKey(100) & 0xFF
+        k = cv2.waitKey(50) & 0xff
         if k == 27:
             logging.info("acquisition abort")
             sys.exit(0)
 
 # Calculate the range and bearing of the object being tracked.
-# Return the tuple (range_mm, bearing_radians)
+# Return the tuple (range_mm, bearing_degrees)
 def track(tracker, timeout_s = 1.0):
 
     # attempt to track the target
@@ -289,7 +289,7 @@ def track(tracker, timeout_s = 1.0):
             return None
 
         # check for abort
-        k = cv2.waitKey(100) & 0xFF
+        k = cv2.waitKey(50) & 0xff
         if k == 27:
             logging.info("tracking abort")
             sys.exit(0)
@@ -299,14 +299,12 @@ def track(tracker, timeout_s = 1.0):
 
     # calculate range
     y = tracker.y
-    track_range = 762.0/math.tan(2.0*math.pi*((80.0-(y/5.27))/360.0))
-    logging.debug("range %f" % (track_range))
+    track_range_mm = 762.0/math.tan(2.0*math.pi*((80.0-(y/5.27))/360.0))
 
     # calculate bearing (radians)
     x = tracker.x - 160
-    track_bearing = (math.pi/180.0)*(x/7.4)
-    logging.debug("bearing %f" % (track_bearing))
-    return (track_range, track_bearing)
+    track_bearing_degrees = (x/7.4)
+    return (track_range_mm, track_bearing_degrees)
 
 """Return +1 if >= 0, -1 otherwise."""
 def sign(x):
@@ -320,13 +318,25 @@ if __name__ == '__main__':
     # set logging to kill
     logging.getLogger().setLevel(logging.INFO)
 
+    # disable the laser
+    open('/sys/class/gpio/gpio20/value','w').write('1')
+
     # initialize the irobot
     r = IRobot()
     r.mode_safe()
     r.mode_full()
 
-    # initialize the tracker
+    # initialize the tracker and calibrate
     c = CVTracker()
+    while True:
+        c.process_frame()
+        k = cv2.waitKey(50) & 0xff
+        if chr(k) == 'c': # continue
+            logging.debug("calibration complete")
+            break
+        elif k == 27: # escape
+            logging.info("calibration abort")
+            sys.exit(0)
 
     try:
         # poll the irobot sensor
@@ -356,8 +366,19 @@ if __name__ == '__main__':
 
             # we have track ... seek and destroy!
             t_prev = t
-            logging.info("tracking range %f bearing %f" % \
-                    (t[0], (180.0/math.pi)*t[1]))
+            logging.info("tracking range %f bearing %f" % (t))
+
+            # scale our forward movement based on the range
+            # XXX what's an ideal range and bearing error?
+            if t[0] < 3000 and math.fabs(t[1]) < 3:
+                logging.info("firing laser")
+                open('/sys/class/gpio/gpio20/value','w').write('1')
+                sys.exit(0)
+
+            # rotate toward the object while moving forward
+            rate = 20
+            right_delta = t[1]/2
+            r.drive(rate - right_delta, rate + right_delta)
 
     finally:
         # stop the irobot
