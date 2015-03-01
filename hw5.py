@@ -166,10 +166,10 @@ class IRobot:
 class CVTracker:
 
     """Information about the last tracked in-frame object."""
-    timestamp, x, y, area = None, None, None, None
+    timestamp, x, y, area, frame, mask = None, None, None, None, None, None
 
     """HSV color threshold. Users *must* calibrate beforing using."""
-    lower, upper = None, None
+    blur, lower, upper = None, None, None
 
     """Initialize capture device and calibration controls."""
     def __init__(self):
@@ -201,9 +201,8 @@ class CVTracker:
         if not success:
             return
 
-        #converting to HSV
-        b0 = cv2.getTrackbarPos('b0','c')
-        frame = cv2.medianBlur(frame,b0)
+        # convert to hsv
+        frame = cv2.medianBlur(frame,self.blur)
         hsv = cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, self.lower, self.upper)
 
@@ -211,7 +210,7 @@ class CVTracker:
         # apply open and closing morpholophy
         # open to remove noise
         # closing to fill holes
-        kernel = np.ones((b0,b0),np.uint8)
+        kernel = np.ones((self.blur,self.blur),np.uint8)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
@@ -229,12 +228,13 @@ class CVTracker:
             cv2.circle(frame,(self.x,self.y),10,(255,255,255),-1)
 
         # show the frame and the mask
-        cv2.imshow('frame',frame)
-        cv2.imshow('mask',mask)
+        self.frame = frame
+        self.mask = mask
 
     """Calibrate the tracker, press 'c' to continue, ESC to abort."""
     def calibrate(self):
         while True:
+            self.blur = cv2.getTrackbarPos('b0','c')
             self.lower = np.array([
                 cv2.getTrackbarPos('h0','c'),
                 cv2.getTrackbarPos('s0','c'),
@@ -244,9 +244,13 @@ class CVTracker:
                 cv2.getTrackbarPos('s1','c'),
                 cv2.getTrackbarPos('v1','c')])
             self.process_frame()
+            if self.frame is not None and self.mask is not None:
+                cv2.imshow('frame',self.frame)
+                cv2.imshow('mask',self.mask)
             k = cv2.waitKey(50) & 0xff
             if chr(k) == 'c': # continue
                 logging.debug("calibration complete")
+                cv2.destroyAllWindows()
                 break
             elif k == 27: # escape
                 logging.info("calibration abort")
