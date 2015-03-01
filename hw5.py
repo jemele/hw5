@@ -98,7 +98,7 @@ class IRobot:
 
     """Drive each wheel at the specified rate."""
     def drive(self, left_mm_per_s, right_mm_per_s):
-        logging.debug("drive %d,%d" % (left_mm_per_s, right_mm_per_s))
+        logging.info("drive %d,%d" % (left_mm_per_s, right_mm_per_s))
 
         # XXX This shouldn't be necessary, but byte ordering appears to be a
         # problem.
@@ -147,16 +147,17 @@ class IRobot:
         b=struct.unpack(f,data)
         self.sensor_bumper = b[0]
         self.sensor_wall = b[1]
-        self.sensor_distance = (b[2]<<8)|b[3]
-        self.sensor_angle = (b[4]<<8)|b[5]
+        self.sensor_distance = int((b[2]<<8)|b[3])
+        self.sensor_angle = int((b[4]<<8)|b[5])
         self.sensor_timestamp = time.time()
-        logging.debug("%d: bumper %d wall %d distance %d" % \
-                (self.sensor_timestamp,self.sensor_bumper,self.sensor_wall,
-                 self.sensor_distance))
 
         # integrate distance and angle
         self.distance += self.sensor_distance
         self.angle += self.sensor_angle
+        logging.info("%d: bumper %d wall %d distance %d,%d angle %d,%d" % \
+                (self.sensor_timestamp,self.sensor_bumper,self.sensor_wall,
+                 self.sensor_distance,self.distance,
+                 self.sensor_angle,self.angle))
 
         # Stop movement on bump
         if self.sensor_bumper:
@@ -242,18 +243,16 @@ class CVTracker:
 if __name__ == '__main__':
 
     # set logging to kill
-    logging.getLogger().setLevel(logging.DEBUG)
+    logging.getLogger().setLevel(logging.INFO)
 
     # initialize the irobot
     # stay in safe mode, since there's no need for full
     r = IRobot()
     r.mode_safe()
-    time.sleep(0.1)
     r.mode_full()
 
-    # poll the irobot sensor every 0.2s
-    time.sleep(0.1)
-    r.sensor_start(0.5)
+    # poll the irobot sensor
+    r.sensor_start(0.4)
 
     # start a bump test
     r.drive(10,10)
