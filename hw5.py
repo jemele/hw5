@@ -249,8 +249,9 @@ class CVTracker:
                 cv2.imshow('mask',self.mask)
             k = cv2.waitKey(50) & 0xff
             if chr(k) == 'c': # continue
-                logging.debug("calibration complete")
+                logging.debug("calibration complete, press ENTER to continue")
                 cv2.destroyAllWindows()
+                raw_input()
                 break
             elif k == 27: # escape
                 logging.info("calibration abort")
