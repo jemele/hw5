@@ -383,7 +383,7 @@ if __name__ == '__main__':
 
             # scale our forward movement based on the range
             # XXX what's an ideal range and bearing error?
-            if t[0] < 3000 and math.fabs(t[1]) < 3:
+            if t[0] < 750 and math.fabs(t[1]) < 3:
                 logging.info("firing laser")
                 open('/sys/class/gpio/gpio20/value','w').write('1')
                 sys.exit(0)
