@@ -232,6 +232,38 @@ class CVTracker:
         cv2.imshow('frame',frame)
         cv2.imshow('mask',mask)
 
+# Acquire an object. Once acquired, return.
+def acquire(robot, tracker, rate_mm_s = 10):
+
+    # start the acquisition loop
+    # begin rotation until the object is detected
+    # if a full rotation occurs without seeing the object, panic.
+    # begin *slow* rotation
+    detects, detect_threshold = 0, 5
+    robot.drive(rate_mm_s, -rate_mm_s)
+    while True:
+
+        # capture and process a frame
+        now = time.time()
+        tracker.process_frame()
+
+        # check to see if an object was detected
+        # if so, bail
+        timestamp = tracker.timestamp
+        if timestamp is not None and timestamp > now:
+            detects += 1
+            logging.info("detect %d" % (detects))
+            if detects >= detect_threshold:
+                logging.info("acquired object")
+                break
+        else:
+            logging.info("searching...")
+
+        # bail on escape
+        k = cv2.waitKey(100) & 0xFF
+        if k == 27:
+            break
+
 # Application entry point.
 if __name__ == '__main__':
 
@@ -247,20 +279,9 @@ if __name__ == '__main__':
     # poll the irobot sensor
     r.sensor_start(0.4)
 
-    # begin *slow* rotation
-    r.drive(-10,10)
-
     # initialize the tracker
     c = CVTracker()
-    while True:
-
-        # capture and process a frame
-        c.process_frame()
-
-        # bail on escape
-        k = cv2.waitKey(100) & 0xFF
-        if k == 27:
-            break
+    acquire(r,c,-7)
 
     # stop the irobot
     r.stop()
