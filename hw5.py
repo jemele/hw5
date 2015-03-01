@@ -246,7 +246,7 @@ def acquire(robot, tracker, rate_mm_s = 10):
     # begin rotation until the object is detected
     # if a full rotation occurs without seeing the object, panic.
     # begin *slow* rotation
-    detects, detect_threshold = 0, 5
+    detects, detect_threshold = 0, 3
     robot.drive(rate_mm_s, -rate_mm_s)
     while True:
 
@@ -308,6 +308,12 @@ def track(tracker, timeout_s = 1.0):
     logging.debug("bearing %f" % (track_bearing))
     return (track_range, track_bearing)
 
+"""Return +1 if >= 0, -1 otherwise."""
+def sign(x):
+    if x < 0:
+        return -1
+    return 1
+
 # Application entry point.
 if __name__ == '__main__':
 
@@ -336,12 +342,10 @@ if __name__ == '__main__':
             t = track(c)
             if t is None:
                 # if the last known track is available, use the last known
-                # bearing to decide which way we acquire
-                # XXX use the magnitude of the bearing to scale the rate
-                rate = -10
+                # bearing to decide which direction we acquire
+                rate = 30
                 if t_prev is not None:
-                    if t_prev[1] > 0:
-                        rate *= -1
+                    rate *= sign(t_prev[1])
 
                 logging.info("track lost... acquiring... %d" % (rate))
                 acquire(r,c,rate)
