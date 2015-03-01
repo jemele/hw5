@@ -93,10 +93,8 @@ class IRobot:
 
         # XXX This shouldn't be necessary, but byte ordering appears to be a
         # problem.
-        f='<BBBBB'
-        l=[(left_mm_per_s>>8)&0xff,(left_mm_per_s&0xff)]
-        r=[(right_mm_per_s>>8)&0xff,(right_mm_per_s&0xff)]
-        c=struct.pack(f,145,l[0],l[1],r[0],r[1])
+        c=struct.pack('<B',145)
+        c+=struct.pack('>hh',right_mm_per_s,left_mm_per_s)
 
         try:
             self.lock.acquire()
@@ -115,31 +113,36 @@ class IRobot:
     def _sensor_poll(self):
         logging.debug("sensor poll")
 
-        # Bumps and Wheel Drops Packet ID: 7 Data Bytes: 1
-        # Wall Packet ID: 8 Data Bytes: 1# 
-        # Distance Packet ID: 19 Data Bytes: 2
-        # Angle Packet ID: 20 Data Bytes: 2
-        # the sensor data, once read
-        c=[149,4,7,8,19,20]
-        f='<BBBBBB'
-        data = None
-
         try:
             self.lock.acquire()
             self.device.flushInput()
             self.device.flush()
+
+            # Bumps and Wheel Drops Packet ID: 7 Data Bytes: 1
+            # Wall Packet ID: 8 Data Bytes: 1
+            # Distance Packet ID: 19 Data Bytes: 2
+            # Angle Packet ID: 20 Data Bytes: 2
+            # the sensor data, once read
+            c=[149,4,7,8,19,20]
             self.device.write(array.array('B',c).tostring())
-            data = self.device.read(struct.calcsize(f))
+            self.sensor_timestamp = time.time()
+
+            # read off the single byte fields first
+            f='<BB'
+            d=self.device.read(struct.calcsize(f))
+            b=struct.unpack(f,d)
+            self.sensor_bumper = b[0]
+            self.sensor_wall = b[1]
+
+            # read off the multibyte fields next
+            f='>hh'
+            d=self.device.read(struct.calcsize(f))
+            b=struct.unpack(f,d)
+            self.sensor_distance = b[0]
+            self.sensor_angle = b[1]
 
         finally:
             self.lock.release()
-
-        b=struct.unpack(f,data)
-        self.sensor_bumper = b[0]
-        self.sensor_wall = b[1]
-        self.sensor_distance = int((b[2]<<8)|b[3])
-        self.sensor_angle = int((b[4]<<8)|b[5])
-        self.sensor_timestamp = time.time()
 
         # integrate distance and angle
         self.distance += self.sensor_distance
@@ -244,8 +247,8 @@ if __name__ == '__main__':
     # poll the irobot sensor
     r.sensor_start(0.4)
 
-    # start a bump test
-    r.drive(10,10)
+    # begin *slow* rotation
+    r.drive(-10,10)
 
     # initialize the tracker
     c = CVTracker()
