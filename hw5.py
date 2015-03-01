@@ -181,12 +181,12 @@ class CVTracker:
         def nothing(x):
             pass
         cv2.createTrackbar('b0','c',15,255,nothing)
-        cv2.createTrackbar('h0','c',60,179,nothing)
-        cv2.createTrackbar('s0','c',20,255,nothing)
-        cv2.createTrackbar('v0','c',20,255,nothing)
-        cv2.createTrackbar('h1','c',160,179,nothing)
-        cv2.createTrackbar('s1','c',200,255,nothing)
-        cv2.createTrackbar('v1','c',200,255,nothing)
+        cv2.createTrackbar('h0','c',90,179,nothing)
+        cv2.createTrackbar('s0','c',90,255,nothing)
+        cv2.createTrackbar('v0','c',90,255,nothing)
+        cv2.createTrackbar('h1','c',150,179,nothing)
+        cv2.createTrackbar('s1','c',240,255,nothing)
+        cv2.createTrackbar('v1','c',240,255,nothing)
 
     """Capture and discard an image frame."""
     def flush_frame(self):
