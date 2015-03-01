@@ -193,7 +193,7 @@ int initial_course_adjustment (location_data *iRobot, camera_data *camera) {
     
 
     // deterimine vector length of target speed
-    double target_speed = 1000*sqrt(R1*R1+R2*R2-(2*R1*R2*cos(iRobot->thetaH_rate)))/iRobot->delta_t;
+    double target_speed = sqrt(R1*R1+R2*R2-(2*R1*R2*cos(iRobot->thetaH_rate)));
     printf("Target_speed: %f\n", target_speed);
     
     if ((1000*(R2-R1)/iRobot->delta_t) > max_speed) {
