@@ -329,6 +329,7 @@ if __name__ == '__main__':
         # attempt to track the object
         # if this fails, go into acquisition
         # on acqusition, we'll continue tracking...
+        t_prev, t = None, None
         while True:
 
             # track our object, if the object cannot be tracked, acquire.
@@ -336,16 +337,23 @@ if __name__ == '__main__':
             if t is None:
                 # if the last known track is available, use the last known
                 # bearing to decide which way we acquire
-                logging.info("track lost... acquiring...")
-                acquire(r,c,-10)
+                # XXX use the magnitude of the bearing to scale the rate
+                rate = -10
+                if t_prev is not None:
+                    if t_prev[1] > 0:
+                        rate *= -1
+
+                logging.info("track lost... acquiring... %d" % (rate))
+                acquire(r,c,rate)
                 
                 # discard a frame to make sure we're not using stale data
                 c.flush_frame()
                 continue
 
             # we have track ... seek and destroy!
+            t_prev = t
             logging.info("tracking range %f bearing %f" % \
-                    (t[0], 180.0*t[1]/math.pi))
+                    (t[0], (180.0/math.pi)*t[1]))
 
     finally:
         # stop the irobot
