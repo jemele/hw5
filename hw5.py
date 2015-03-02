@@ -3,6 +3,7 @@
 import array
 import cv2
 import logging
+import math
 import numpy as np
 import serial
 import struct
@@ -187,6 +188,10 @@ class CVTracker:
         cv2.createTrackbar('s1','c',200,255,nothing)
         cv2.createTrackbar('v1','c',200,255,nothing)
 
+    """Capture and discard an image frame."""
+    def flush_frame(self):
+        self.cap.read()
+
     """Capture and process an image frame.""" 
     def process_frame(self):
         _, frame = self.cap.read()
@@ -232,7 +237,9 @@ class CVTracker:
         cv2.imshow('frame',frame)
         cv2.imshow('mask',mask)
 
-# Acquire an object. Once acquired, return.
+# Acquire an object.
+# On acquisition, stop and return.
+# Acquisition can be aborted, but will otherwise run forever.
 def acquire(robot, tracker, rate_mm_s = 10):
 
     # start the acquisition loop
@@ -255,14 +262,51 @@ def acquire(robot, tracker, rate_mm_s = 10):
             logging.info("detect %d" % (detects))
             if detects >= detect_threshold:
                 logging.info("acquired object")
-                break
+                robot.stop()
+                return
         else:
             logging.info("searching...")
 
-        # bail on escape
+        # check for abort
         k = cv2.waitKey(100) & 0xFF
         if k == 27:
-            break
+            logging.info("acquisition abort")
+            sys.exit(0)
+
+# Calculate the range and bearing of the object being tracked.
+# Return the tuple (range_mm, bearing_radians)
+def track(tracker, timeout_s = 1.0):
+
+    # attempt to track the target
+    # read the tracker and make sure we have a target
+    start = time.time()
+    while tracker.timestamp < start:
+        tracker.process_frame()
+        
+        # check for timeout
+        if (time.time() - start) > timeout_s:
+            logging.info("track timeout")
+            return None
+
+        # check for abort
+        k = cv2.waitKey(100) & 0xFF
+        if k == 27:
+            logging.info("tracking abort")
+            sys.exit(0)
+
+    # we found something!
+    logging.info("tracker x %d y %d", tracker.x, tracker.y)
+
+    # calculate range
+    y = tracker.y
+    track_range = 762.0/math.tan(2.0*math.pi*((80.0-(y/5.27))/360.0))
+    logging.debug("range %f" % (track_range))
+
+    # calculate bearing (radians)
+    x = tracker.x - 160
+    track_bearing = (math.pi/180.0)*(x/7.4)
+    logging.debug("bearing %f" % (track_bearing))
+    return (track_range, track_bearing)
 
 # Application entry point.
 if __name__ == '__main__':
@@ -271,19 +315,39 @@ if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
 
     # initialize the irobot
-    # stay in safe mode, since there's no need for full
     r = IRobot()
     r.mode_safe()
     r.mode_full()
 
-    # poll the irobot sensor
-    r.sensor_start(0.4)
-
     # initialize the tracker
     c = CVTracker()
-    acquire(r,c,-7)
 
-    # stop the irobot
-    r.stop()
-    r.sensor_stop()
-        
+    try:
+        # poll the irobot sensor
+        r.sensor_start(0.4)
+
+        # attempt to track the object
+        # if this fails, go into acquisition
+        # on acqusition, we'll continue tracking...
+        while True:
+
+            # track our object, if the object cannot be tracked, acquire.
+            t = track(c)
+            if t is None:
+                # if the last known track is available, use the last known
+                # bearing to decide which way we acquire
+                logging.info("track lost... acquiring...")
+                acquire(r,c,-10)
+                
+                # discard a frame to make sure we're not using stale data
+                c.flush_frame()
+                continue
+
+            # we have track ... seek and destroy!
+            logging.info("tracking range %f bearing %f" % \
+                    (t[0], 180.0*t[1]/math.pi))
+
+    finally:
+        # stop the irobot
+        r.stop()
+        r.sensor_stop()
