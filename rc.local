@@ -1,0 +1,12 @@
+#!/bin/sh -e
+
+# configure the irobot/bbb uart
+echo on > /sys/devices/ocp.3/47400000.usb/musb-hdrc.0.auto/power/control
+/bin/echo BB-UART1 > /sys/devices/bone_capemgr.9/slots
+sleep 1
+/bin/stty -F /dev/ttyO1 57600 raw -echo
+
+# configure the laser gpio
+echo 20 > /sys/class/gpio/export
+echo out > /sys/class/gpio/gpio20/direction
+echo 0 > /sys/class/gpio/gpio20/value
