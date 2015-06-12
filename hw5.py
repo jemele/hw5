@@ -16,6 +16,9 @@ class IRobot:
     """A serial device used to communicate with the irobot.""" 
     device = serial.Serial('/dev/ttyO1',57600)
 
+    """A lock used to serialize access to the device."""
+    lock = threading.Lock()
+
     """If valid, a threading.Timer object for sensor polling."""
     timer = None
 
@@ -30,20 +33,56 @@ class IRobot:
     """Start the irobot."""
     def mode_start(self):
         logging.debug('mode start')
-        c=array.array('B',[128])
-        self.device.write(c.tostring())
+
+        try:
+            logging.debug("acquiring device lock")
+            self.lock.acquire()
+
+            logging.debug("flushing serial")
+            self.device.flushInput()
+            self.device.flush()
+
+            c=array.array('B',[128])
+            self.device.write(c.tostring())
+
+        finally:
+            self.lock.release()
 
     """Enter safe mode."""
     def mode_safe(self):
         logging.debug('mode safe')
-        c=array.array('B',[131])
-        self.device.write(c.tostring())
+
+        try:
+            logging.debug("acquiring device lock")
+            self.lock.acquire()
+
+            logging.debug("flushing serial")
+            self.device.flushInput()
+            self.device.flush()
+
+            c=array.array('B',[131])
+            self.device.write(c.tostring())
+
+        finally:
+            self.lock.release()
 
     """Enter full mode."""
     def mode_full(self):
         logging.debug('mode full')
-        c=array.array('B',[132])
-        self.device.write(c.tostring())
+
+        try:
+            logging.debug("acquiring device lock")
+            self.lock.acquire()
+
+            logging.debug("flushing serial")
+            self.device.flushInput()
+            self.device.flush()
+
+            c=array.array('B',[132])
+            self.device.write(c.tostring())
+
+        finally:
+            self.lock.release()
 
     """Start the sensor polling timer."""
     def sensor_start(self, period_s):
@@ -63,7 +102,10 @@ class IRobot:
     """Drive each wheel at the specified rate."""
     def drive(self, left_mm_per_s, right_mm_per_s):
         logging.debug("drive %d,%d" % (left_mm_per_s, right_mm_per_s))
-        pass
+
+        f='<BHH'
+        c=struct.pack(f,left_mm_per_s,right_mm_per_s)
+        
 
     """Stop driving."""
     def stop(self):
@@ -74,22 +116,33 @@ class IRobot:
     def _sensor_poll(self):
         logging.debug("sensor poll")
 
-        logging.debug("flushing serial")
-        self.device.flushInput()
-        self.device.flush()
+        # the sensor data, once read
+        data = None
 
-        # Bumps and Wheel Drops Packet ID: 7 Data Bytes: 1
-        # Wall Packet ID: 8 Data Bytes: 1# 
-        # Distance Packet ID: 19 Data Bytes: 2
-        # Angle Packet ID: 20 Data Bytes: 2
-        logging.debug("query list")
-        c=[149,4,7,8,19,20]
-        self.device.write(array.array('B',c).tostring())
+        try:
+            logging.debug("acquiring device lock")
+            self.lock.acquire()
 
-        f='<BBHH'
-        logging.debug("reading sensor: %d bytes" % (struct.calcsize(f)))
-        d=self.device.read(struct.calcsize(f))
-        b=struct.unpack(f,d)
+            logging.debug("flushing serial")
+            self.device.flushInput()
+            self.device.flush()
+
+            # Bumps and Wheel Drops Packet ID: 7 Data Bytes: 1
+            # Wall Packet ID: 8 Data Bytes: 1# 
+            # Distance Packet ID: 19 Data Bytes: 2
+            # Angle Packet ID: 20 Data Bytes: 2
+            logging.debug("query list")
+            c=[149,4,7,8,19,20]
+            self.device.write(array.array('B',c).tostring())
+
+            f='<BBHH'
+            logging.debug("reading sensor: %d bytes" % (struct.calcsize(f)))
+            data = self.device.read(struct.calcsize(f))
+
+        finally:
+            self.lock.release()
+
+        b=struct.unpack(f,data))
         logging.debug(b)
         self.sensor_bumper = b[0]
         self.sensor_wall = b[1]
