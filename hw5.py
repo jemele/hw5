@@ -105,7 +105,18 @@ class IRobot:
 
         f='<BHH'
         c=struct.pack(f,left_mm_per_s,right_mm_per_s)
-        
+
+        try:
+            logging.debug("acquiring device lock")
+            self.lock.acquire()
+
+            logging.debug("flushing serial")
+            self.device.flushInput()
+            self.device.flush()
+            self.device.write(c)
+
+        finally:
+            self.lock.release()
 
     """Stop driving."""
     def stop(self):
@@ -248,6 +259,9 @@ if __name__ == '__main__':
     # poll the irobot sensor every 0.5s
     r.sensor_start(0.5)
 
+    # start a bump test
+    r.drive(10,10)
+
     # initialize the tracker
     c = CVTracker()
     while True:
@@ -256,10 +270,11 @@ if __name__ == '__main__':
         c.process_frame()
 
         # bail on escape
-        k = cv2.waitKey(10) & 0xFF
+        k = cv2.waitKey(100) & 0xFF
         if k == 27:
             break
 
     # stop the irobot
+    r.stop()
     r.sensor_stop()
         
